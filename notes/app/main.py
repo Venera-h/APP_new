@@ -9,6 +9,7 @@ from database import SessionLocal, PracticalWork
 from crypt import CryptService
 from sqlalchemy.orm import Session
 from kafka_service import kafka_service
+from uuid import UUID
 
 
 def produce(data: dict):
@@ -81,7 +82,7 @@ def get_current_user(token: str = Depends(oauth2),
             headers={"WWW-Authenticate": "Bearer"}
         )
     
-def get_user_work(work_id: int, user_id: int, session: Session) -> PracticalWork:
+def get_user_work(work_id: UUID, user_id: int, session: Session) -> PracticalWork:
     work = session.query(PracticalWork).filter(
         PracticalWork.owner_id == user_id,
         PracticalWork.id == work_id
@@ -133,13 +134,13 @@ def get_all_works(skip: int = 0, limit: int = 100,
     return session.query(PracticalWork).filter(PracticalWork.owner_id == id_user).offset(skip).limit(limit).all()
 
 @app.get("/api/works/{work_id}", response_model=PracticalWorkOut)
-def get_work(work_id: int, 
+def get_work(work_id: UUID, 
              session: Session = Depends(get_session),
              id_user: int = Depends(get_current_user)):
     return get_user_work(work_id, id_user, session)
 
 @app.put("/api/works/{work_id}", response_model=PracticalWorkOut)
-def update_work(work_id: int, work_update: PracticalWorkUpdate, 
+def update_work(work_id: UUID, work_update: PracticalWorkUpdate, 
                 id_user: int = Depends(get_current_user),
                 session: Session = Depends(get_session)):
     print(f"=== UPDATE DEBUG ===")
@@ -167,11 +168,11 @@ def update_work(work_id: int, work_update: PracticalWorkUpdate,
     return work
 
 @app.options("/api/works/{work_id}")
-def options_work_by_id(work_id: int):
+def options_work_by_id(work_id: UUID):
     return {"message": "OK"}
 
 @app.delete("/api/works/{work_id}")
-def delete_work(work_id: uuid.UUID,
+def delete_work(work_id: UUID,
                 id_user: int = Depends(get_current_user),
                 session: Session = Depends(get_session)):
     print(f"=== DELETE DEBUG ===")

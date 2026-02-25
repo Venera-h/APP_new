@@ -5,6 +5,6 @@ Base = declarative_base()
 
 class User(Base):
     __tablename__ = "users"
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuuid.uuid4, index=True)
+    id = Column(Integer, primary_key=True, index=True)
     login = Column(String, index=True, unique=True)
     hashed_password = Column(String)

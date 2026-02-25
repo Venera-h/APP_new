@@ -49,8 +49,6 @@ def options_login():
 def register_user(user_register: UserRegister, 
                   session: Session = Depends(get_session)):
     print(f"Register attempt: {user_register.login}")
-    produce({'action': 'register',
-     'login': user_register.login, id})#для kafka
     
     existing_user = session.query(User).filter(User.login == user_register.login).first()
     if existing_user:

@@ -1,13 +1,13 @@
 from typing import Annotated
 from pydantic import BaseModel, Field, ConfigDict
 from datetime import date
+from uuid import UUID
 
 WorkNameType = Annotated[str, Field(min_length=1, max_length=200)]
 StudentType = Annotated[str, Field(min_length=1, max_length=100)]
 VariantType = Annotated[int, Field(ge=1, le=100)]
 LevelType = Annotated[int, Field(ge=1, le=10)]
 GradeType = Annotated[int, Field(ge=1, le=5)]
-IdType = Annotated[str, Field(min_length=1)]
 
 class PracticalWorkBase(BaseModel): 
     work_name: WorkNameType
@@ -33,7 +33,7 @@ class PracticalWorkUpdate(BaseModel):
 
 class PracticalWorkOut(PracticalWorkBase): 
     model_config = ConfigDict(from_attributes=True)
-    id: IdType
+    id: UUID
     title: str
     content: str
     owner_id: int

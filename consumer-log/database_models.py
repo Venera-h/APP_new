@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, UUID, uuid
+from sqlalchemy import Column, Integer, String, UUID
 from sqlalchemy.ext.declarative import declarative_base
+import uuid
 
 Base = declarative_base()
 
