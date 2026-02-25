@@ -11,6 +11,10 @@ from sqlalchemy.orm import Session
 from kafka_service import kafka_service
 
 
+def produce(data: dict):
+    kafka_service.publish_event('notes-events', data)
+
+
 def get_session():
     db = SessionLocal()
     try:
@@ -118,10 +122,7 @@ def create_work(work: PracticalWorkCreate,
         'title': work.title,
         'operation': 'create'
     })
-    try:
-        produce({'action': 'create_work', 'work_id': database_work.id, 'user_id': id_user})
-    except:
-        raise HTTPException(status_code=500, detail = "Failed to produce message to Kafka")
+    
     return database_work
 
 
@@ -170,7 +171,7 @@ def options_work_by_id(work_id: int):
     return {"message": "OK"}
 
 @app.delete("/api/works/{work_id}")
-def delete_work(work_id: int,
+def delete_work(work_id: uuid.UUID,
                 id_user: int = Depends(get_current_user),
                 session: Session = Depends(get_session)):
     print(f"=== DELETE DEBUG ===")

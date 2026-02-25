@@ -46,8 +46,12 @@ def options_login():
 
 #Регистрация новых пользователей
 @app.post("/api/auth/register", response_model=TokenOut)
-def register_user(user_register: UserRegister, session: Session = Depends(get_session)):
+def register_user(user_register: UserRegister, 
+                  session: Session = Depends(get_session)):
     print(f"Register attempt: {user_register.login}")
+    produce({'action': 'register',
+     'login': user_register.login, id})#для kafka
+    
     existing_user = session.query(User).filter(User.login == user_register.login).first()
     if existing_user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User already exists")
@@ -70,10 +74,7 @@ def register_user(user_register: UserRegister, session: Session = Depends(get_se
     
     return TokenOut(token=token)
 
-@app.get("/test-users")
-def test_users(session: Session = Depends(get_session)):
-    users = session.query(User).all()
-    return {"users": [user.login for user in users]}
+
 
 #Авторизация 
 @app.post("/api/auth/login", response_model=TokenOut)

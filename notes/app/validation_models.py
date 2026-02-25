@@ -7,7 +7,7 @@ StudentType = Annotated[str, Field(min_length=1, max_length=100)]
 VariantType = Annotated[int, Field(ge=1, le=100)]
 LevelType = Annotated[int, Field(ge=1, le=10)]
 GradeType = Annotated[int, Field(ge=1, le=5)]
-IdType = Annotated[int, Field(gt=0)]
+IdType = Annotated[str, Field(min_length=1)]
 
 class PracticalWorkBase(BaseModel): 
     work_name: WorkNameType
