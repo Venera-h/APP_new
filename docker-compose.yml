@@ -82,7 +82,7 @@ services:
     environment:
       DATABASE_URL:
     volumes:
-      - ./consumer-log:/app/consumer-log
+      - ./log:/app/log
 
 
   react:

@@ -2,13 +2,17 @@ from confluent_kafka import Consumer
 
 c = Consumer({
     'bootstrap.servers': 'broker',
-    'group.id': 'mygroup',
+    'group.id': 'log',
     'auto.offset.reset': 'earliest',
     'enable.auto.commit': 'false'
 })
 
 c.subscribe(['operations'])
 session = SessionLocal()
+
+
+file = open('./log/log.txt', 'w+')
+
 
 while True:
     msg = c.poll(1.0)
@@ -22,33 +26,16 @@ while True:
 
         object = json.load(msg.value().decode('utf-8'))
         if object.op=='c':
-            database_note = Note(tittle=object.note.title,
-                                content=object.note.content,
-                        owner_id=object.user_id,
-                        id=object.note.id)
-            session.add(database_note)
-
-            session.commit()
-            pass
+            file.write(f"Note create with id={object.note.id}, title={
+            object.note.title}, content={object.note.content}")
+            
         elif object.op=='u':
-            note = (session.query(Note)
-            .filter(Note.id==object.note.id)
-            .first())
-            if not note:
-                raise RuntimeError("Non correct id")
-            note.title = object.note.title
-            note.content = object.note.content 
-            session.commit()
-            pass
+           file.write(f"Note update with id={object.note.id}, title={
+            object.note.title}, content={object.note.content}")
+
         elif object.op=='d':
-            note = (session.query(Note)
-            .filter(Note.id==object.note.id)
-            .first())
-            if not note:
-                raise RuntimeError("Non correct id")
-            session.delete(note)
-            session.commit()
-            pass
+            file.write(f"Note delete with id={object.note.id}, title={
+            object.note.title}, content={object.note.content}")
         else:
             raise RuntimeError("Non correct object op")
         
