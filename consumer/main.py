@@ -18,25 +18,43 @@ while True:
     if msg.error():
         print("Consumer error: {}".format(msg.error()))
         continue
+    try:
 
-    object = json.load(msg.value().decode('utf-8'))
-    if object.op=='c':
-        database_note = Note(tittle=object.note.title,
-                             content=object.note.content,
-                     owner_id=object.user_id,
-                     id=object.note.id)
-        session.add(database_note)
+        object = json.load(msg.value().decode('utf-8'))
+        if object.op=='c':
+            database_note = Note(tittle=object.note.title,
+                                content=object.note.content,
+                        owner_id=object.user_id,
+                        id=object.note.id)
+            session.add(database_note)
 
-        session.commit()
+            session.commit()
+            pass
+        elif object.op=='u':
+            note = (session.query(Note)
+            .filter(Note.id==object.note.id)
+            .first())
+            if not note:
+                raise RuntimeError("Non correct id")
+            note.title = object.note.title
+            note.content = object.note.content 
+            session.commit()
+            pass
+        elif object.op=='d':
+            note = (session.query(Note)
+            .filter(Note.id==object.note.id)
+            .first())
+            if not note:
+                raise RuntimeError("Non correct id")
+            session.delete(note)
+            session.commit()
+            pass
+        else:
+            raise RuntimeError("Non correct object op")
+        
+        c.commit(msg)
+
+    except Exception as e:
+        print(e)
         pass
-    elif object.op=='u':
-        pass
-    elif object.op=='d':
-        pass
-    else:
-        raise RuntimeError("Non correct object op")
-    print('Received message: {}'.format(msg.value().decode('utf-8')))
-
-    c.commit(msg)
-
 c.close()
