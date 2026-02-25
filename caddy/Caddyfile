@@ -1,0 +1,5 @@
+:80 {
+	reverse_proxy /api/auth/* auth:8000
+	reverse_proxy /api/works/* notes:8000
+	reverse_proxy react:80
+}
