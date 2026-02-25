@@ -72,6 +72,17 @@ services:
       condition: service_healthy
     kafka:
        condition: service_healthy
+  consumer-log:
+  build: consumer-log 
+  depends_on:
+    db:
+      condition: service_healthy
+    kafka:
+       condition: service_healthy
+    environment:
+      DATABASE_URL:
+    volumes:
+      - ./consumer-log:/app/consumer-log
 
 
   react:
