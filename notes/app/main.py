@@ -10,6 +10,8 @@ from crypt import CryptService
 from sqlalchemy.orm import Session
 from kafka_service import kafka_service
 from uuid import UUID
+from note_es import NoteEventProducer, NoteEventSourcing
+import uuid
 
 
 def produce(data: dict):
@@ -43,7 +45,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-oauth2 = OAuth2PasswordBearer(tokenUrl="api/auth/login", auto_error=False) #извлечение токена
+oauth2 = OAuth2PasswordBearer(tokenUrl="api/auth/login", auto_error=False)
 
 def get_current_user(token: str = Depends(oauth2),
                      session: Session = Depends(get_session)) -> int:
@@ -95,13 +97,33 @@ def get_user_work(work_id: UUID, user_id: int, session: Session) -> PracticalWor
 def options_works():
     return {"message": "OK"}
 
+# EVENT SOURCING: Создание работы через события
 @app.post("/api/works/", response_model=PracticalWorkOut)
 def create_work(work: PracticalWorkCreate,
                 id_user: int = Depends(get_current_user),
                 session: Session = Depends(get_session)):
-    print(f"Creating work for user {id_user}: {work.title}")
-    print(f"Work data: {work.model_dump()}")
-    database_work = PracticalWork(
+    work_id = str(uuid.uuid4())
+    
+    # Публикуем событие создания в Kafka (вместо прямой записи в БД)
+    NoteEventProducer.produce_event('c', {
+        'id': work_id,
+        'title': work.title,
+        'content': work.content,
+        'owner_id': id_user,
+        'work_name': work.work_name,
+        'student': work.student,
+        'variant_number': work.variant_number,
+        'level_number': work.level_number,
+        'submission_date': str(work.submission_date),
+        'grade': work.grade
+    })
+    
+    # Replay: восстанавливаем состояние из событий
+    es = NoteEventSourcing(work_id, work.title, work.content)
+    es.load()
+    
+    return PracticalWorkOut(
+        id=UUID(work_id),
         title=work.title,
         content=work.content,
         owner_id=id_user,
@@ -112,58 +134,61 @@ def create_work(work: PracticalWorkCreate,
         submission_date=work.submission_date,
         grade=work.grade
     )
-    session.add(database_work)
-    session.commit()
-    session.refresh(database_work)
-    print(f"Work created successfully with ID: {database_work.id}")
-    
-    kafka_service.publish_event('WorkCreated', {
-        'work_id': database_work.id,
-        'user_id': id_user,
-        'title': work.title,
-        'operation': 'create'
-    })
-    
-    return database_work
 
 
+# EVENT SOURCING: Получение списка с replay
 @app.get("/api/works/", response_model=list[PracticalWorkOut])
 def get_all_works(skip: int = 0, limit: int = 100,
                  id_user: int = Depends(get_current_user),
                  session: Session = Depends(get_session)):
-    return session.query(PracticalWork).filter(PracticalWork.owner_id == id_user).offset(skip).limit(limit).all()
+    works = session.query(PracticalWork).filter(PracticalWork.owner_id == id_user).offset(skip).limit(limit).all()
+    result = []
+    for work in works:
+        # Replay: восстанавливаем актуальное состояние из событий
+        es = NoteEventSourcing(str(work.id), work.title, work.content)
+        es.load()
+        result.append(work)
+    return result
 
+# EVENT SOURCING: Получение одной работы с replay
 @app.get("/api/works/{work_id}", response_model=PracticalWorkOut)
 def get_work(work_id: UUID, 
              session: Session = Depends(get_session),
              id_user: int = Depends(get_current_user)):
+    # Replay: восстанавливаем состояние из событий
+    es = NoteEventSourcing(str(work_id), None, None)
+    es.load()
     return get_user_work(work_id, id_user, session)
 
+# EVENT SOURCING: Обновление через события
 @app.put("/api/works/{work_id}", response_model=PracticalWorkOut)
 def update_work(work_id: UUID, work_update: PracticalWorkUpdate, 
                 id_user: int = Depends(get_current_user),
                 session: Session = Depends(get_session)):
-    print(f"=== UPDATE DEBUG ===")
-    print(f"Updating work ID: {work_id} for user: {id_user}")
-    print(f"Update data: {work_update.model_dump(exclude_unset=True)}")
-    
     work = get_user_work(work_id, id_user, session)
-    print(f"Found work: {work.title}")
+    
+    # Replay: загружаем текущее состояние из событий
+    es = NoteEventSourcing(str(work_id), work.title, work.content)
+    es.load()
     
     update_data = work_update.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        print(f"Updating {field}: {getattr(work, field)} -> {value}")
-        setattr(work, field, value)
+    new_title = update_data.get('title', work.title)
+    new_content = update_data.get('content', work.content)
     
+    # Оптимистичная блокировка: проверяем версию перед обновлением
+    es.update(es._NoteEventSourcing__version__, new_title, new_content)
+    
+    # Публикуем событие обновления в Kafka
+    NoteEventProducer.produce_event('u', {
+        'id': str(work_id),
+        'title': new_title,
+        'content': new_content
+    })
+    
+    for field, value in update_data.items():
+        setattr(work, field, value)
     session.commit()
     session.refresh(work)
-    print(f"Work updated successfully")
-    
-    kafka_service.publish_event('WorkUpdated', {
-        'work_id': work_id,
-        'user_id': id_user,
-        'operation': 'update'
-    })
     
     return work
 
@@ -171,30 +196,19 @@ def update_work(work_id: UUID, work_update: PracticalWorkUpdate,
 def options_work_by_id(work_id: UUID):
     return {"message": "OK"}
 
+# EVENT SOURCING: Удаление через события
 @app.delete("/api/works/{work_id}")
 def delete_work(work_id: UUID,
                 id_user: int = Depends(get_current_user),
                 session: Session = Depends(get_session)):
-    print(f"=== DELETE DEBUG ===")
-    print(f"Deleting work ID: {work_id} for user: {id_user}")
+    work = get_user_work(work_id, id_user, session)
     
-    try:
-        work = get_user_work(work_id, id_user, session)
-        print(f"Found work: {work.title}")
-        
-        session.delete(work)
-        session.commit()
-        print(f"Work {work_id} deleted successfully")
-        
-        kafka_service.publish_event('WorkDeleted', {
-            'work_id': work_id,
-            'user_id': id_user,
-            'operation': 'delete'
-        })
-        
-        return {"message": "Work deleted successfully"}
-    except Exception as e:
-        print(f"ERROR deleting work: {e}")
-        session.rollback()
-        raise
-
+    # Публикуем событие удаления в Kafka
+    NoteEventProducer.produce_event('d', {
+        'id': str(work_id)
+    })
+    
+    session.delete(work)
+    session.commit()
+    
+    return {"message": "Work deleted successfully"}

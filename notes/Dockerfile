@@ -2,7 +2,7 @@ FROM python:3.13-alpine
 
 WORKDIR /usr/src/app
 
-RUN apk add --no-cache curl
+RUN apk add --no-cache curl build-base librdkafka-dev
 
 COPY app/requirements.txt ./
 

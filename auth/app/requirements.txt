@@ -1,4 +1,5 @@
 fastapi
+uvicorn
 sqlalchemy
 python-jose
 passlib==1.7.4
