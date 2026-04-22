@@ -40,9 +40,8 @@ services:
     - "8001:8000"
     environment:
       - SECRET_KEY=${SECRET_KEY}
-      - ENGINE_URL=postgresql://postgres:${POSTGRES_PASSWORD_NOTES}@notes_db:5432/notesdb
     depends_on:
-      notes_db:
+      broker:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -69,16 +68,12 @@ services:
   consumer:
     build: ./consumer
     depends_on:
-      notes_db:
-        condition: service_healthy
       broker:
         condition: service_healthy
 
   consumer-log:
     build: ./consumer-log
     depends_on:
-      notes_db:
-        condition: service_healthy
       broker:
         condition: service_healthy
     environment:
@@ -112,7 +107,7 @@ services:
       - KAFKA_NODE_ID=1
       - KAFKA_PROCESS_ROLES=broker,controller
       - KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
-      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://broker:9092
       - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
       - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
       - KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:9093

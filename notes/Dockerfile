@@ -1,8 +1,8 @@
-FROM python:3.13-alpine 
+FROM python:3.13-slim
 
 WORKDIR /usr/src/app
 
-RUN apk add --no-cache curl build-base librdkafka-dev
+RUN apt-get update && apt-get install -y --no-install-recommends curl librdkafka-dev && rm -rf /var/lib/apt/lists/*
 
 COPY app/requirements.txt ./
 
