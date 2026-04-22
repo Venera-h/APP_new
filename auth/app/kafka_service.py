@@ -5,6 +5,7 @@ from kafka.errors import KafkaError
 class KafkaService:
     def __init__(self):
         try:
+            #лямбда-функция для сериализации данных в JSON-формат
             self.producer = KafkaProducer(
                 bootstrap_servers=['broker:9092'],
                 value_serializer=lambda v: json.dumps(v).encode('utf-8')
